@@ -116,13 +116,14 @@ def main_dashboard():
     # O saldo final é o último saldo disponível no DataFrame filtrado
     saldo_final = filtered_df_for_plot['SALDO Total (Caixa)'].iloc[-1] if not filtered_df_for_plot.empty else 0
 
-    
-
-    col1, col2, col3, col4 = st.columns(4)
+    # SUGESTÃO 1: Usar duas linhas de duas colunas para melhor responsividade em celulares.
+    col1, col2 = st.columns(2)
     with col1:
         st.metric("Total de Receitas", funcoes.format_currency_brl(total_receitas))
     with col2:
         st.metric("Total de Despesas", funcoes.format_currency_brl(total_despesas))
+
+    col3, col4 = st.columns(2)
     with col3:
         st.metric("Saldo Final", funcoes.format_currency_brl(saldo_final))
     with col4:
@@ -152,12 +153,13 @@ def main_dashboard():
 
     # Gráfico 2: Comparativo de Receitas e Despesas
     st.subheader("Comparativo: Receitas vs. Despesas")
+    # SUGESTÃO 2: Mudar para 'stack' para melhor visualização em telas pequenas.
     fig_comparativo = px.bar(
         filtered_df_for_plot,
         x='Período',
         y=['RECEITAS', 'DESPESAS VARIÁVEIS', 'DESPESAS EXTRAS'],
         title='Comparativo: Receitas vs. Despesas',
-        barmode='group',
+        barmode='stack',
         labels={'value': 'Valor (R$)', 'variable': 'Categoria', 'Período': 'Período de Referência'},
         hover_data={'Ano': False, 'Mês': True}
     )
