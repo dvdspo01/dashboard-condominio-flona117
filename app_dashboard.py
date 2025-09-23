@@ -246,9 +246,6 @@ def main_dashboard():
         render_full_dashboard() # Renderiza o dashboard completo
     else:
         st.sidebar.info("Você está logado como **Usuário**.")
-        # Aqui você pode renderizar uma versão simplificada do dashboard ou uma mensagem.
-        st.title("Dashboard Financeiro do Condomínio")
-        st.markdown("Visão geral do fluxo de caixa.")
         # Por enquanto, vamos renderizar o mesmo dashboard, mas você pode criar uma função `render_user_dashboard()`
         render_full_dashboard()
 
