@@ -95,16 +95,21 @@ def render_full_dashboard():
 
     # Define as categorias detalhadas com base nas colunas esperadas do CSV
     # ATENÇÃO: Os nomes devem ser exatamente iguais aos do CSV, incluindo espaços.
-    DETAILED_REVENUE_CATEGORIES = ['Cotas Condominiais (Até dia 08)', 'Rendimentos']
-    DETAILED_VARIABLE_EXPENSE_CATEGORIES = ['Água (venc. Dia 10)', 'Luz  (venc. Dia 21)', 'Faxina ']
-    DETAILED_EXTRA_EXPENSE_CATEGORIES = ['Obras', 'Consertos', 'Outras']
+    DETAILED_REVENUE_CATEGORIES = ['Cotas Condominiais (Até dia 08)', 'Rendimentos'] # Mantém-se igual
+    DETAILED_VARIABLE_EXPENSE_CATEGORIES = ['Água (venc. Dia 10)', 'Luz  (venc. Dia 21)', 'Faxina '] # Mantém-se igual
+    
+    # Categorias originais para garantir que as colunas sejam carregadas
+    ORIGINAL_EXTRA_EXPENSE_CATEGORIES = ['Obras', 'Consertos', 'Outros']
 
     # Garante que as colunas de categorias detalhadas existam no DataFrame combinado.
     # Se uma coluna estiver faltando em algum dos CSVs, ela será adicionada com valores zero para evitar erros.
-    all_detail_cols = DETAILED_REVENUE_CATEGORIES + DETAILED_VARIABLE_EXPENSE_CATEGORIES + DETAILED_EXTRA_EXPENSE_CATEGORIES
+    all_detail_cols = DETAILED_REVENUE_CATEGORIES + DETAILED_VARIABLE_EXPENSE_CATEGORIES + ORIGINAL_EXTRA_EXPENSE_CATEGORIES
     for col in all_detail_cols:
         if col not in df_combined.columns:
             df_combined[col] = 0.0
+
+    # Cria a nova coluna somando 'Consertos' e 'Outros'
+    df_combined['Consertos e Outros'] = df_combined['Consertos'] + df_combined['Outros']
 
     if df_combined.empty:
         st.error("Nenhum dado foi carregado. Verifique os caminhos dos arquivos CSV.")
@@ -226,7 +231,7 @@ def render_full_dashboard():
 
     if selected_period_detail == 'Todos os Meses':
         df_detail = filtered_df.copy()
-        detail_title_suffix = f" (Agregado de {', '.join(map(str, selected_years))})"
+        detail_title_suffix = f" ({', '.join(map(str, selected_years))})"
     else:
         df_detail = filtered_df[filtered_df['Período'] == selected_period_detail].copy()
         detail_title_suffix = f" ({selected_period_detail})"
@@ -238,7 +243,10 @@ def render_full_dashboard():
         df_revenue_detail = df_revenue_detail[df_revenue_detail['Valor'] > 0] # Filtra valores zero
 
         # Prepara os dados para as despesas detalhadas (variáveis e extras)
-        all_expense_categories = DETAILED_VARIABLE_EXPENSE_CATEGORIES + DETAILED_EXTRA_EXPENSE_CATEGORIES
+        # Define as categorias de despesa para o gráfico, usando a nova coluna combinada
+        UPDATED_EXTRA_EXPENSE_CATEGORIES = ['Obras', 'Consertos e Outros']
+        all_expense_categories = DETAILED_VARIABLE_EXPENSE_CATEGORIES + UPDATED_EXTRA_EXPENSE_CATEGORIES
+
         df_expense_detail = df_detail[all_expense_categories].sum().reset_index()
         df_expense_detail.columns = ['Categoria', 'Valor']
         df_expense_detail = df_expense_detail[df_expense_detail['Valor'] > 0]
