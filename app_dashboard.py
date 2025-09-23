@@ -99,6 +99,16 @@ def render_full_dashboard():
     # Filtra o DataFrame com base nos anos selecionados
     filtered_df = df_combined[df_combined['Ano'].isin(selected_years)].copy()
 
+    # --- Botão de Download ---
+    # Converte o dataframe filtrado para CSV em memória
+    csv = filtered_df.to_csv(index=False).encode('utf-8')
+    st.sidebar.download_button(
+        label="📥 Baixar Relatório (CSV)",
+        data=csv,
+        file_name=f'relatorio_condominio_{"_".join(map(str, selected_years))}.csv',
+        mime='text/csv',
+    )
+
     # Remove meses que não têm dados de 'SALDO Total (Caixa)' para um gráfico mais limpo
     filtered_df_for_plot = filtered_df[filtered_df['SALDO Total (Caixa)'] > 0].copy()
 
