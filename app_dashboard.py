@@ -51,7 +51,7 @@ def render_admin_page():
 
     try:
         # Formulário para registrar um novo usuário
-        if authenticator.register_user('Registrar usuário', location='main'):
+        if authenticator.register_user(form_name='Registrar usuário', location='main'):
             st.success('Usuário registrado com sucesso!')
             
             # ATENÇÃO: A biblioteca atualiza o dicionário 'config_credentials' em memória.
