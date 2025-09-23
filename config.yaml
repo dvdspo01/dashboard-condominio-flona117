@@ -1,1 +1,17 @@
 
+credentials:
+  usernames:
+    felona117:
+      email: fernandolona117@gmail.com
+      name: Fernando Lona (admfernandolona117.com.br)
+      password: '$2b$12$t.r.Aw2d7syr2w.xE0Xlzuv8yP5P.0JOqlPrPhVVlrpJ47k0i8zp.' # Hash da senha "F3rN@nd0_L0N@117"
+    rbriggs:
+      email: dvd.miura@gmail.com
+      name: David
+      password: '$2b$12$lUZaV4bEmhbojt/2nYYk0O.YB8ypbwlnovMYPwNaAnR0hzNidMtde' # Hash da senha "Dvdspo@2@2S!@#"
+cookie:
+  expiry_days: 0
+  key: 'c8a7b6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7'
+  name: cookie_condominio_dashboard
+preauthorized:
+  emails: []
