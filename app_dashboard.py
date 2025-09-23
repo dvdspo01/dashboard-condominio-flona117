@@ -145,7 +145,7 @@ def render_full_dashboard():
         hover_data={'Ano': False, 'Mês': True} # Mostra o Mês no tooltip, esconde o Ano (já está na cor)
     )
     fig_saldo.update_traces(line=dict(width=3))
-    st.plotly_chart(fig_saldo, use_container_width=True)
+    st.plotly_chart(fig_saldo, use_container_width=True, config={'scrollZoom': False})
 
     st.markdown("---")
 
@@ -161,7 +161,7 @@ def render_full_dashboard():
         labels={'value': 'Valor (R$)', 'variable': 'Categoria', 'Período': 'Período de Referência'},
         hover_data={'Ano': False, 'Mês': True}
     )
-    st.plotly_chart(fig_comparativo, use_container_width=True)
+    st.plotly_chart(fig_comparativo, use_container_width=True, config={'scrollZoom': False})
 
     st.markdown("---")
 
@@ -207,7 +207,7 @@ def render_full_dashboard():
                     title=f'Distribuição das Receitas',
                     hole=0.4 # Para fazer um gráfico de donut
                 )
-                st.plotly_chart(fig_revenue_pie, use_container_width=True)
+                st.plotly_chart(fig_revenue_pie, use_container_width=True, config={'scrollZoom': False})
             else:
                 st.info("Nenhuma receita detalhada para exibir no período selecionado.")
 
@@ -221,7 +221,7 @@ def render_full_dashboard():
                     title=f'Distribuição das Despesas',
                     hole=0.4 # Para fazer um gráfico de donut
                 )
-                st.plotly_chart(fig_expense_pie, use_container_width=True)
+                st.plotly_chart(fig_expense_pie, use_container_width=True, config={'scrollZoom': False})
             else:
                 st.info("Nenhuma despesa detalhada para exibir no período selecionado.")
     else:
