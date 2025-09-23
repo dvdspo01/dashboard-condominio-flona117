@@ -12,16 +12,23 @@ st.set_page_config(layout="wide", page_title="Dashboard Financeiro Condomínio")
 
 # --- Configuração da Autenticação ---
 
-# Carrega a configuração do arquivo config.yaml
-with open('config.yaml') as file:
-    config = yaml.safe_load(file)
+# Tenta carregar as credenciais do Streamlit Secrets (para deploy na nuvem)
+try:
+    config_credentials = st.secrets['credentials']
+    config_cookie = st.secrets['cookie']
+# Se falhar (rodando localmente), carrega do arquivo config.yaml
+except (FileNotFoundError, KeyError):
+    with open('config.yaml') as file:
+        config = yaml.safe_load(file)
+    config_credentials = config['credentials']
+    config_cookie = config['cookie']
 
 # Cria o objeto autenticador
 authenticator = stauth.Authenticate(
-    config['credentials'],
-    config['cookie']['name'],
-    config['cookie']['key'],
-    config['cookie']['expiry_days']
+    config_credentials,
+    config_cookie['name'],
+    config_cookie['key'],
+    config_cookie['expiry_days']
 )
 
 def main_dashboard():
