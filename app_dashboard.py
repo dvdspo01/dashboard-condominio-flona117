@@ -42,8 +42,10 @@ def main_dashboard():
 
     # --- Carregamento e Preparação dos Dados (somente após login) ---
     # Caminhos para os arquivos CSV
-    file_path_2025 = r'c:\Condominio\arquivos_csv\FLUXO DE CAIXA 2025.csv' # Usar os.path.join seria mais robusto
-    file_path_2024 = r'c:\Condominio\arquivos_csv\FLUXO DE CAIXA 2024.csv' # Usar os.path.join seria mais robusto
+    #file_path_2025 = r'c:\Condominio\arquivos_csv\FLUXO DE CAIXA 2025.csv' # Usar os.path.join seria mais robusto
+    #file_path_2024 = r'c:\Condominio\arquivos_csv\FLUXO DE CAIXA 2024.csv' # Usar os.path.join seria mais robusto
+    file_path_2025 = 'arquivos_csv/FLUXO DE CAIXA 2025.csv'
+    file_path_2024 = 'arquivos_csv/FLUXO DE CAIXA 2024.csv'
 
     # Carrega e processa os dados para cada ano
     df_2025 = funcoes.load_and_process_data(file_path_2025, 2025)
