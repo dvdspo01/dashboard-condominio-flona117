@@ -222,11 +222,14 @@ def main_dashboard():
 
 # --- Lógica Principal da Aplicação ---
 
-authenticator.login(location='main')
-
+# Verifica o status da autenticação ANTES de renderizar qualquer coisa
 if st.session_state.get("authentication_status"):
+    # Se o usuário estiver autenticado, mostra o dashboard
     main_dashboard()
-elif st.session_state.get("authentication_status") is False:
-    st.error('Usuário ou senha incorreto.')
-elif st.session_state.get("authentication_status") is None:
-    st.warning('Por favor, insira seu usuário e senha.')
+else:
+    # Se não estiver autenticado, mostra a tela de login
+    authenticator.login(location='main')
+    if st.session_state.get("authentication_status") is False:
+        st.error('Usuário ou senha incorreto.')
+    elif st.session_state.get("authentication_status") is None:
+        st.warning('Por favor, insira seu usuário e senha.')
