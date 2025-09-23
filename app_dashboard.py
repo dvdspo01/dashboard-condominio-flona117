@@ -33,6 +33,7 @@ except (FileNotFoundError, KeyError):
     config_cookie = config['cookie']
 
 # Cria o objeto autenticador
+# A biblioteca armazena os detalhes do usuário em config_credentials['usernames']
 authenticator = stauth.Authenticate(
     config_credentials,
     config_cookie['name'],
@@ -40,7 +41,7 @@ authenticator = stauth.Authenticate(
     config_cookie['expiry_days']
 )
 
-def main_dashboard():
+def render_full_dashboard():
     """
     Função principal que renderiza o dashboard após a autenticação.
     """
@@ -228,6 +229,31 @@ def main_dashboard():
                 st.info("Nenhuma despesa detalhada para exibir no período selecionado.")
     else:
         st.info("Nenhum dado disponível para o período selecionado para detalhamento.")
+
+def main_dashboard():
+    """
+    Função principal que atua como um roteador, verificando a role do usuário
+    e renderizando a visualização apropriada.
+    """
+    # Adiciona o botão de logout na barra lateral para todos os usuários logados
+    authenticator.logout('Logout', 'sidebar', key='unique_logout_key')
+    st.sidebar.title(f'Bem-vindo, *{st.session_state["name"]}*')
+
+    # Pega o nome de usuário da sessão
+    username = st.session_state["username"]
+    # Busca a role do usuário no dicionário de credenciais
+    user_role = config_credentials['usernames'][username].get('role', 'user') # Padrão para 'user' se a role não for definida
+
+    if user_role == 'admin':
+        st.sidebar.success("Você está logado como **Administrador**.")
+        render_full_dashboard() # Renderiza o dashboard completo
+    else:
+        st.sidebar.info("Você está logado como **Usuário**.")
+        # Aqui você pode renderizar uma versão simplificada do dashboard ou uma mensagem.
+        st.title("Dashboard Financeiro do Condomínio")
+        st.markdown("Visão geral do fluxo de caixa.")
+        # Por enquanto, vamos renderizar o mesmo dashboard, mas você pode criar uma função `render_user_dashboard()`
+        render_full_dashboard()
 
 
 # --- Lógica Principal da Aplicação ---
