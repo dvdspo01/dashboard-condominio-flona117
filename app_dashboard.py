@@ -41,6 +41,38 @@ authenticator = stauth.Authenticate(
     config_cookie['expiry_days']
 )
 
+def render_admin_page():
+    """
+    Renderiza a página de gerenciamento de usuários, visível apenas para administradores.
+    """
+    st.title("Gerenciamento de Usuários")
+
+    st.subheader("Registrar Novo Usuário")
+
+    try:
+        # Formulário para registrar um novo usuário
+        if authenticator.register_user('Registrar usuário', preauthorization=False):
+            st.success('Usuário registrado com sucesso!')
+            
+            # ATENÇÃO: A biblioteca atualiza o dicionário 'config_credentials' em memória.
+            # Para persistir a mudança na nuvem, o admin precisa atualizar os Secrets.
+            # Vamos exibir o novo conteúdo para ser copiado.
+            
+            # Converte o dicionário Python atualizado para o formato YAML para fácil leitura
+            updated_yaml = yaml.dump({'credentials': config_credentials})
+            
+            st.subheader("Atualize seus 'Secrets' no Streamlit Cloud")
+            st.info("Para que o novo usuário seja permanente, copie o texto abaixo e cole na seção 'Secrets' do seu aplicativo, substituindo o conteúdo de 'credentials'. Lembre-se de converter para o formato TOML.")
+            st.code(updated_yaml, language='yaml')
+
+    except Exception as e:
+        st.error(e)
+
+    # Futuramente, podemos adicionar aqui a funcionalidade de listar e remover usuários.
+    st.subheader("Usuários Existentes")
+    st.write(list(config_credentials['usernames'].keys()))
+
+
 def render_full_dashboard():
     """
     Função que renderiza o dashboard completo para administradores.
@@ -253,7 +285,17 @@ def main_dashboard():
 
     if user_role == 'admin':
         st.sidebar.success("Você está logado como **Administrador**.")
-        render_full_dashboard() # Renderiza o dashboard completo
+        
+        # Navegação para administradores
+        admin_pages = {
+            "Dashboard Principal": render_full_dashboard,
+            "Gerenciar Usuários": render_admin_page
+        }
+        selected_page = st.sidebar.radio("Navegação", options=list(admin_pages.keys()))
+        
+        # Renderiza a página selecionada
+        admin_pages[selected_page]()
+
     else:
         st.sidebar.info("Você está logado como **Usuário**.")
         # Por enquanto, vamos renderizar o mesmo dashboard, mas você pode criar uma função `render_user_dashboard()`
