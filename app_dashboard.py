@@ -43,11 +43,8 @@ authenticator = stauth.Authenticate(
 
 def render_full_dashboard():
     """
-    Função principal que renderiza o dashboard após a autenticação.
+    Função que renderiza o dashboard completo para administradores.
     """
-    # Adiciona o botão de logout na barra lateral
-    authenticator.logout('Logout', 'sidebar', key='unique_logout_key')
-    st.sidebar.title(f'Bem-vindo, *{st.session_state["name"]}*')
 
     # --- Carregamento e Preparação dos Dados (somente após login) ---
     # Caminhos para os arquivos CSV
