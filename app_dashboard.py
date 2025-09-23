@@ -2,8 +2,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st 
 import streamlit_authenticator as stauth 
-import yaml
-import copy
+import yaml 
 import funcoes
 
 
@@ -15,9 +14,9 @@ st.set_page_config(layout="wide", page_title="Dashboard Financeiro Condomínio")
 
 # Tenta carregar as credenciais do Streamlit Secrets (para deploy na nuvem)
 try:
-    # Usa deepcopy para garantir que todos os dicionários aninhados sejam mutáveis
-    config_credentials = copy.deepcopy(st.secrets['credentials'])
-    config_cookie = copy.deepcopy(st.secrets['cookie'])
+    # Converte o objeto Secrets em um dicionário Python padrão e mutável
+    config_credentials = st.secrets["credentials"].to_dict()
+    config_cookie = st.secrets["cookie"].to_dict()
 # Se falhar (rodando localmente), carrega do arquivo config.yaml
 except (FileNotFoundError, KeyError):
     with open('config.yaml') as file:
