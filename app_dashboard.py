@@ -7,7 +7,15 @@ import funcoes
 
 
 # --- Configuração e Layout do Streamlit (deve ser a primeira chamada Streamlit) ---
-st.set_page_config(layout="wide", page_title="Dashboard Financeiro Condomínio")
+st.set_page_config(
+    layout="wide", 
+    page_title="Dashboard Financeiro Condomínio",
+    menu_items={
+        'Get Help': 'mailto:fernandolona117@gmail.com', # Substitua pelo seu e-mail de contato
+        'Report a bug': "mailto:fernandolona117@gmail.com", # Ou um link para abrir uma issue no GitHub
+        'About': "# Dashboard Financeiro do Condomínio\nEste aplicativo foi desenvolvido para analisar o fluxo de caixa."
+    }
+)
 
 
 # --- Configuração da Autenticação ---
