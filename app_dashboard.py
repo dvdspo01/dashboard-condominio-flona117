@@ -326,7 +326,7 @@ def render_cotas_dashboard():
         st.markdown("### Visão Geral dos Pagamentos")
         # Preenche valores nulos com 0 e aplica a formatação de moeda
         st.dataframe(
-            df_cotas_raw.fillna(0)
+            df_cotas_raw.fillna(0).style.format(funcoes.format_currency_brl)
         )
 
         st.markdown("---")
