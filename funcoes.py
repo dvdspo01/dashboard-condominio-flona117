@@ -23,12 +23,16 @@ def clean_currency(value):
     return float(value) if value else 0.0
 
 @st.cache_data # Cache the data loading and processing
-def load_and_process_data(file_path, year):
-    """Carrega, limpa e formata os dados de um arquivo CSV para um ano específico."""
+def load_and_process_data(excel_path, sheet_name, year):
+    """Carrega, limpa e formata os dados de uma aba (ano) de um arquivo Excel."""
     try:
-        df = pd.read_csv(file_path, skiprows=4, index_col=0, encoding='utf-8')
+        # Lê uma aba específica do arquivo Excel. O nome da aba deve ser o ano.
+        df = pd.read_excel(excel_path, sheet_name=sheet_name, skiprows=4, index_col=0)
     except FileNotFoundError:
-        print(f"Aviso: O arquivo para o ano {year} não foi encontrado em '{file_path}'")
+        print(f"Aviso: O arquivo Excel não foi encontrado em '{excel_path}'")
+        return None
+    except ValueError as e: # Captura erro se a aba não for encontrada
+        print(f"Aviso: A aba '{sheet_name}' não foi encontrada no arquivo. Erro: {e}")
         return None
 
     # Limpeza básica
@@ -51,4 +55,3 @@ def load_and_process_data(file_path, year):
 # Função auxiliar para formatar valores monetários em BRL
 def format_currency_brl(value):
     return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-

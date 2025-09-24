@@ -1,10 +1,14 @@
 import pandas as pd
 import plotly.express as px
 import streamlit as st 
-import streamlit_authenticator as stauth 
+import streamlit_authenticator as stauth
 import io
 import yaml 
 import funcoes
+import os
+from datetime import datetime
+import re
+import fitz # PyMuPDF
 
 
 # --- Configuração e Layout do Streamlit (deve ser a primeira chamada Streamlit) ---
@@ -17,6 +21,13 @@ st.set_page_config(
         'About': "# Dashboard Financeiro do Condomínio\nEste aplicativo foi desenvolvido para analisar o fluxo de caixa."
     }
 )
+
+
+# --- CONSTANTES GLOBAIS DE CATEGORIAS ---
+DETAILED_REVENUE_CATEGORIES = ['Cotas Condominiais (Até dia 08)', 'Rendimentos']
+DETAILED_VARIABLE_EXPENSE_CATEGORIES = ['Água (venc. Dia 10)', 'Luz  (venc. Dia 21)', 'Faxina ']
+ORIGINAL_EXTRA_EXPENSE_CATEGORIES = ['Obras', 'Consertos', 'Outros']
+UPDATED_EXTRA_EXPENSE_CATEGORIES = ['Obras', 'Consertos e Outros']
 
 
 # --- Configuração da Autenticação ---
@@ -74,6 +85,184 @@ def render_admin_page():
     st.write(list(config_credentials['usernames'].keys()))
 
 
+def render_upload_page():
+    """
+    Renderiza a página para upload e processamento de comprovantes em PDF.
+    """
+    st.title("Upload e Análise de Comprovantes")
+
+    uploaded_file = st.file_uploader(
+        "Escolha um arquivo PDF", 
+        type="pdf",
+        help="Faça o upload de um comprovante de depósito ou pagamento."
+    )
+
+    if uploaded_file is not None:
+        try:
+            # --- 1. Salvar o arquivo PDF no diretório 'comprovantes' ---
+            comprovantes_dir = "comprovantes"
+            os.makedirs(comprovantes_dir, exist_ok=True) # Cria o diretório se não existir
+
+            # Cria um nome de arquivo único com timestamp para evitar sobreposição
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            # Limpa o nome do arquivo original para segurança
+            safe_filename = "".join(c for c in uploaded_file.name if c.isalnum() or c in ('.', '_')).rstrip()
+            new_filename = f"{timestamp}_{safe_filename}"
+            save_path = os.path.join(comprovantes_dir, new_filename)
+
+            # Salva o arquivo no disco
+            with open(save_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            
+            st.success(f"Comprovante '{uploaded_file.name}' salvo com sucesso!")
+
+            # Lê o conteúdo do arquivo em memória
+            pdf_document = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+            
+            text = ""
+            for page_num in range(len(pdf_document)):
+                page = pdf_document.load_page(page_num)
+                text += page.get_text()
+
+            st.subheader("Texto Extraído do PDF")
+            st.text_area("Conteúdo", text, height=300)
+
+            # --- PRÓXIMO PASSO: Análise do Texto com Regex ---
+            st.subheader("Informações Encontradas (Análise Preliminar)")
+
+            # Padrões de Regex para encontrar informações
+            # Padrão para valor em R$ (ex: 1.234,56)
+            padrao_valor = r'R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2})'
+            # Padrão para data no formato dd/mm/yyyy
+            padrao_data = r'\b(\d{2}/\d{2}/\d{4})\b'
+
+            # Encontra todas as ocorrências dos padrões no texto
+            valores_encontrados = re.findall(padrao_valor, text)
+            datas_encontradas = re.findall(padrao_data, text)
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write("**Valores (R$):**")
+                st.write(valores_encontrados if valores_encontrados else "Nenhum valor encontrado.")
+            with col2:
+                st.write("**Datas:**")
+                st.write(datas_encontradas if datas_encontradas else "Nenhuma data encontrada.")
+
+            # --- Formulário para Confirmação e Classificação ---
+            if valores_encontrados and datas_encontradas:
+                st.markdown("---")
+                st.subheader("Confirmar e Lançar Transação")
+
+                # Define as categorias possíveis para o lançamento
+
+                with st.form("lancamento_form"):
+                    st.write("Por favor, confirme os dados extraídos e classifique a transação.")
+                    
+                    # Seleciona o valor principal (geralmente o primeiro ou o maior)
+                    valor_selecionado = st.selectbox("Valor da Transação (R$)", options=valores_encontrados)
+                    
+                    # Seleciona a data da transação
+                    data_selecionada = st.selectbox("Data da Transação", options=list(set(datas_encontradas))) # Usa set para remover datas duplicadas
+
+                    # Lógica condicional para a categoria
+                    username = st.session_state.get("username")
+                    if username == 'felona117':
+                        categoria_selecionada = 'Cotas Condominiais (Até dia 08)'
+                        st.info(f"Categoria definida automaticamente: **{categoria_selecionada}**")
+                    else:
+                        todas_categorias = DETAILED_REVENUE_CATEGORIES + DETAILED_VARIABLE_EXPENSE_CATEGORIES + ORIGINAL_EXTRA_EXPENSE_CATEGORIES
+                        categoria_selecionada = st.selectbox("Categoria", options=todas_categorias)
+
+                    submitted = st.form_submit_button("Lançar no Sistema")
+                    if submitted:
+                        # Ação futura: aqui virá a lógica para atualizar o DataFrame principal
+                        st.success(f"Lançamento confirmado: R$ {valor_selecionado} em {data_selecionada} na categoria '{categoria_selecionada}'.")
+                        st.info("Funcionalidade de atualização do dashboard será implementada no próximo passo.")
+
+        except Exception as e:
+            st.error(f"Ocorreu um erro ao processar o PDF: {e}")
+
+def render_cotas_dashboard():
+    """
+    Renderiza o dashboard de análise das cotas condominiais pagas.
+    """
+    st.title("Cotas do Condomínio")
+
+    excel_master_path = 'planilhas/Contabilidade Condominio.xlsx'
+    sheet_name_cotas = "TaxaCondominio"
+
+    try:
+        # Carrega os dados da aba específica, pulando as 4 primeiras linhas para encontrar o cabeçalho correto.
+        df_cotas_raw = pd.read_excel(excel_master_path, sheet_name=sheet_name_cotas, skiprows=3, index_col=0, header=0)
+        df_cotas_raw = df_cotas_raw.dropna(how='all').dropna(axis=1, how='all') # Remove linhas e colunas vazias
+
+        # --- Limpeza Adicional: Remove linhas/colunas de totais ---
+        # Remove a linha de 'Total' se ela existir no índice (muito comum em planilhas)
+        if 'Total' in df_cotas_raw.index:
+            df_cotas_raw = df_cotas_raw.drop('Total')
+
+        # Remove a coluna 'Total' se ela existir
+        if 'Total' in df_cotas_raw.columns:
+            df_cotas_raw = df_cotas_raw.drop(columns=['Total'])
+
+        # Garante que o índice e as colunas sejam do tipo string para evitar erros e avisos
+        # Itera sobre as colunas e formata aquelas que são do tipo datetime para o formato 'Mês/Ano'
+        new_columns = []
+        for col in df_cotas_raw.columns:
+            if isinstance(col, datetime):
+                # Formata a data para 'MêsAbreviado/AnoCurto' (ex: 'Jan/25')
+                new_columns.append(col.strftime('%b/%y'))
+            else:
+                new_columns.append(str(col))
+        df_cotas_raw.columns = new_columns
+        df_cotas_raw.index = df_cotas_raw.index.astype(str)
+
+        # --- Transformação dos Dados (Unpivot) ---
+        # Transforma o DataFrame do formato largo para o formato longo
+        df_cotas = df_cotas_raw.reset_index().melt(
+            id_vars=df_cotas_raw.index.name,
+            var_name='Mês Referência',
+            value_name='Valor Pago'
+        )
+        # Renomeia a coluna de apartamentos se necessário
+        df_cotas.rename(columns={df_cotas.columns[0]: 'Apartamento'}, inplace=True)
+        
+        # Limpa e converte a coluna 'Valor Pago' para numérico, tratando erros
+        df_cotas['Valor Pago'] = pd.to_numeric(df_cotas['Valor Pago'], errors='coerce').fillna(0)
+        
+        st.markdown("### Visão Geral dos Pagamentos")
+        # Preenche valores nulos com 0 e aplica a formatação de moeda
+        st.dataframe(
+            df_cotas_raw.fillna(0).style.format(funcoes.format_currency_brl)
+        )
+
+        st.markdown("---")
+        st.subheader("Total Arrecadado por Mês de Referência")
+        pagamentos_por_mes = df_cotas.groupby('Mês Referência')['Valor Pago'].sum().reset_index()
+        pagamentos_por_mes = pagamentos_por_mes[pagamentos_por_mes['Valor Pago'] > 0] # Remove meses sem arrecadação
+        
+        # Ordena os meses corretamente se eles tiverem um formato que permita ordenação
+        try:
+            # Converte a coluna de meses para um formato de data real para ordenação
+            # e cria uma nova coluna para o texto do rótulo (ex: 'Jan/24')
+            pagamentos_por_mes['sort_key'] = pd.to_datetime(pagamentos_por_mes['Mês Referência'], format='%b/%y', errors='coerce')
+            pagamentos_por_mes.dropna(subset=['sort_key'], inplace=True) # Remove meses que não puderam ser convertidos
+            pagamentos_por_mes.sort_values(by='sort_key', inplace=True)
+        except Exception:
+            pass # Se a conversão de data falhar, usa a ordem alfabética padrão
+
+        if not pagamentos_por_mes.empty:
+            fig = px.bar(pagamentos_por_mes, x='Mês Referência', y='Valor Pago', title='Total Arrecadado por Mês', text_auto='.2s')
+            fig.update_traces(textangle=0, textposition="outside")
+            st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': False})
+        else:
+            st.info("Não há dados de arrecadação para exibir no gráfico.")
+
+    except FileNotFoundError:
+        st.error(f"Arquivo mestre não encontrado em: '{excel_master_path}'")
+    except ValueError:
+        st.error(f"Aba '{sheet_name_cotas}' não encontrada na planilha. Por favor, verifique o nome exato da aba.")
+
 def render_full_dashboard():
     """
     Função que renderiza o dashboard completo para administradores.
@@ -81,25 +270,33 @@ def render_full_dashboard():
 
     # --- Carregamento e Preparação dos Dados (somente após login) ---
     # Caminhos para os arquivos CSV
-    #file_path_2025 = r'c:\Condominio\arquivos_csv\FLUXO DE CAIXA 2025.csv' # Usar os.path.join seria mais robusto
-    #file_path_2024 = r'c:\Condominio\arquivos_csv\FLUXO DE CAIXA 2024.csv' # Usar os.path.join seria mais robusto
-    file_path_2025 = 'arquivos_csv/FLUXO DE CAIXA 2025.csv'
-    file_path_2024 = 'arquivos_csv/FLUXO DE CAIXA 2024.csv'
+    # Aponta para o único arquivo Excel mestre
+    excel_master_path = 'planilhas/Contabilidade Condominio.xlsx'
 
-    # Carrega e processa os dados para cada ano
-    df_2025 = funcoes.load_and_process_data(file_path_2025, 2025)
-    df_2024 = funcoes.load_and_process_data(file_path_2024, 2024)
+    # --- Carregamento Dinâmico de Abas ---
+    all_dfs = []
+    try:
+        xls = pd.ExcelFile(excel_master_path)
+        sheet_names = xls.sheet_names
+        year_pattern = re.compile(r'(\d{4})') # Padrão para encontrar um ano de 4 dígitos
 
-    # Combina os DataFrames dos dois anos
-    df_combined = pd.concat([df for df in [df_2024, df_2025] if df is not None])
+        for sheet in sheet_names:
+            match = year_pattern.search(sheet)
+            if match:
+                year = int(match.group(1))
+                df = funcoes.load_and_process_data(excel_master_path, sheet, year)
+                if df is not None:
+                    all_dfs.append(df)
+    except FileNotFoundError:
+        st.error(f"Arquivo mestre não encontrado em: '{excel_master_path}'")
+        st.stop()
 
-    # Define as categorias detalhadas com base nas colunas esperadas do CSV
-    # ATENÇÃO: Os nomes devem ser exatamente iguais aos do CSV, incluindo espaços.
-    DETAILED_REVENUE_CATEGORIES = ['Cotas Condominiais (Até dia 08)', 'Rendimentos'] # Mantém-se igual
-    DETAILED_VARIABLE_EXPENSE_CATEGORIES = ['Água (venc. Dia 10)', 'Luz  (venc. Dia 21)', 'Faxina '] # Mantém-se igual
-    
-    # Categorias originais para garantir que as colunas sejam carregadas
-    ORIGINAL_EXTRA_EXPENSE_CATEGORIES = ['Obras', 'Consertos', 'Outros']
+    df_combined = pd.concat(all_dfs) if all_dfs else pd.DataFrame()
+
+    # Adiciona uma verificação para garantir que os dados foram carregados
+    if df_combined.empty:
+        st.error("Nenhuma aba com um ano no nome (ex: 'Fluxo de Caixa 2024') foi encontrada ou carregada com sucesso da planilha.")
+        st.stop()
 
     # Garante que as colunas de categorias detalhadas existam no DataFrame combinado.
     # Se uma coluna estiver faltando em algum dos CSVs, ela será adicionada com valores zero para evitar erros.
@@ -137,6 +334,14 @@ def render_full_dashboard():
     # Filtra o DataFrame com base nos anos selecionados
     filtered_df = df_combined[df_combined['Ano'].isin(selected_years)].copy()
 
+    # Dropdown para seleção de mês para a visualização detalhada
+    all_periods = sorted(filtered_df['Período'].unique())
+    selected_period_detail = st.sidebar.selectbox(
+        "Selecione um Mês para Detalhes:",
+        options=['Todos os Meses'] + all_periods,
+        index=0 # Padrão para 'Todos os Meses'
+    )
+
     # --- Botão de Download da Planilha Estática ---
     # ATENÇÃO: Substitua 'NOME_DA_SUA_PLANILHA.xlsx' pelo nome real do seu arquivo.
     planilha_path = 'planilhas/Contabilidade Condominio.xlsx'
@@ -168,17 +373,19 @@ def render_full_dashboard():
     saldo_final = filtered_df_for_plot['SALDO Total (Caixa)'].iloc[-1] if not filtered_df_for_plot.empty else 0
 
     # SUGESTÃO 1: Usar duas linhas de duas colunas para melhor responsividade em celulares.
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Total de Receitas", funcoes.format_currency_brl(total_receitas))
     with col2:
         st.metric("Total de Despesas", funcoes.format_currency_brl(total_despesas))
-
-    col3, col4 = st.columns(2)
     with col3:
         st.metric("Saldo Final", funcoes.format_currency_brl(saldo_final))
-    with col4:
-        st.metric("Média Mensal de Saldo", funcoes.format_currency_brl(filtered_df_for_plot['SALDO Total (Caixa)'].mean()))
+
+    # col3, col4 = st.columns(2)
+    # with col3:
+    #     st.metric("Saldo Final", funcoes.format_currency_brl(saldo_final))
+    # with col4:
+    #     st.metric("Média Mensal de Saldo", funcoes.format_currency_brl(filtered_df_for_plot['SALDO Total (Caixa)'].mean()))
 
 
     st.markdown("---")
@@ -221,14 +428,6 @@ def render_full_dashboard():
     # --- Detalhamento por Categoria ---
     st.subheader("Detalhe por Categoria")
 
-    # Dropdown para seleção de mês para a visualização detalhada
-    all_periods = sorted(filtered_df['Período'].unique())
-    selected_period_detail = st.sidebar.selectbox(
-        "Selecione um Mês para Detalhes:",
-        options=['Todos os Meses'] + all_periods,
-        index=0 # Padrão para 'Todos os Meses'
-    )
-
     if selected_period_detail == 'Todos os Meses':
         df_detail = filtered_df.copy()
         detail_title_suffix = f" ({', '.join(map(str, selected_years))})"
@@ -244,7 +443,6 @@ def render_full_dashboard():
 
         # Prepara os dados para as despesas detalhadas (variáveis e extras)
         # Define as categorias de despesa para o gráfico, usando a nova coluna combinada
-        UPDATED_EXTRA_EXPENSE_CATEGORIES = ['Obras', 'Consertos e Outros']
         all_expense_categories = DETAILED_VARIABLE_EXPENSE_CATEGORIES + UPDATED_EXTRA_EXPENSE_CATEGORIES
 
         df_expense_detail = df_detail[all_expense_categories].sum().reset_index()
@@ -292,28 +490,39 @@ def main_dashboard():
     authenticator.logout('Logout', 'sidebar', key='unique_logout_key')
     st.sidebar.title(f'Bem-vindo, *{st.session_state["name"]}*')
 
+    # Verifica se o usuário ainda está autenticado após a chamada do logout.
+    # Se o botão de logout foi clicado, o status será None e devemos parar aqui.
+    if not st.session_state.get("authentication_status"):
+        return
+
     # Pega o nome de usuário da sessão
     username = st.session_state["username"]
     # Busca a role do usuário no dicionário de credenciais
     user_role = config_credentials['usernames'][username].get('role', 'user') # Padrão para 'user' se a role não for definida
 
+    # Define as páginas disponíveis para cada tipo de usuário
+    admin_pages = {
+        "Dashboard Principal": render_full_dashboard,
+        "Gerenciar Usuários": render_admin_page,
+        "Upload de Comprovantes": render_upload_page,
+        "Condominio Mensal": render_cotas_dashboard
+    }
+    user_pages = {
+        "Dashboard Principal": render_full_dashboard,
+        "Upload de Comprovantes": render_upload_page,
+        "Condominio Mensal": render_cotas_dashboard
+    }
+
     if user_role == 'admin':
         st.sidebar.success("Você está logado como **Administrador**.")
-        
-        # Navegação para administradores
-        admin_pages = {
-            "Dashboard Principal": render_full_dashboard,
-            "Gerenciar Usuários": render_admin_page
-        }
-        selected_page = st.sidebar.radio("Navegação", options=list(admin_pages.keys()))
-        
-        # Renderiza a página selecionada
-        admin_pages[selected_page]()
-
+        pages_to_show = admin_pages
     else:
         st.sidebar.info("Você está logado como **Usuário**.")
-        # Por enquanto, vamos renderizar o mesmo dashboard, mas você pode criar uma função `render_user_dashboard()`
-        render_full_dashboard()
+        pages_to_show = user_pages
+
+    # Renderiza o menu de navegação e a página selecionada
+    selected_page = st.sidebar.radio("Navegação", options=list(pages_to_show.keys()))
+    pages_to_show[selected_page]()
 
 
 # --- Lógica Principal da Aplicação ---
@@ -324,7 +533,9 @@ if st.session_state.get("authentication_status"):
     main_dashboard()
 else:
     # Se não estiver autenticado, mostra a tela de login
+    # A função login retorna o status da autenticação, que deve ser capturado.
     authenticator.login(location='main')
+
     if st.session_state.get("authentication_status") is False:
         st.error('Usuário ou senha incorreto.')
     elif st.session_state.get("authentication_status") is None:
