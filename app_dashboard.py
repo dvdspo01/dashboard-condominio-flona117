@@ -37,9 +37,9 @@ try:
     # Converte o objeto Secrets em um dicionário Python padrão e mutável
     config_credentials = st.secrets["credentials"].to_dict()
     config_cookie = st.secrets["cookie"].to_dict()
-# Se falhar (rodando localmente), carrega do arquivo config.yaml
+# Se falhar (rodando localmente), carrega do arquivo secrets.yaml
 except (FileNotFoundError, KeyError):
-    with open('config.yaml') as file:
+    with open('secrets.yaml') as file:
         config = yaml.safe_load(file)
     config_credentials = config['credentials']
     config_cookie = config['cookie']

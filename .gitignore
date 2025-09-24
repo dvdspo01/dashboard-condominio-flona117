@@ -10,4 +10,4 @@ generate_keys.py
 generate_cookie_key.py
 
 # Arquivo de configuração do autenticador (contêm segredos)
-config.yaml
+secrets.yaml
