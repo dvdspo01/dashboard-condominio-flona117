@@ -30,6 +30,17 @@ ORIGINAL_EXTRA_EXPENSE_CATEGORIES = ['Obras', 'Consertos', 'Outros']
 UPDATED_EXTRA_EXPENSE_CATEGORIES = ['Obras', 'Consertos e Outros']
 
 
+# --- Carregamento de Dados Iniciais ---
+@st.cache_data
+def load_moradores_mapping(path):
+    """Carrega o mapeamento de nomes de moradores para apartamentos de um arquivo YAML."""
+    try:
+        with open(path, 'r', encoding='utf-8') as file:
+            return yaml.safe_load(file).get('mapeamento', {})
+    except Exception as e:
+        st.error(f"Não foi possível carregar o arquivo de mapeamento de moradores: {e}")
+        return {}
+
 # --- Configuração da Autenticação ---
 
 # Tenta carregar as credenciais do Streamlit Secrets (para deploy na nuvem)
@@ -83,6 +94,45 @@ def render_admin_page():
     # Futuramente, podemos adicionar aqui a funcionalidade de listar e remover usuários.
     st.subheader("Usuários Existentes")
     st.write(list(config_credentials['usernames'].keys()))
+
+def style_dataframe(df):
+    """Aplica a formatação de moeda a um DataFrame."""
+    # Aplica a formatação a todas as colunas
+    return df.style.format(funcoes.format_currency_brl, na_rep='-')
+
+def render_fluxo_caixa_page():
+    """
+    Renderiza uma página para visualizar as tabelas de dados do Fluxo de Caixa.
+    """
+    st.title("Visualização de Dados: Fluxo de Caixa")
+    excel_master_path = 'planilhas/Contabilidade Condominio.xlsx'
+
+    try:
+        xls = pd.ExcelFile(excel_master_path)
+        sheet_names = xls.sheet_names
+        year_pattern = re.compile(r'(\d{4})')
+
+        for sheet in sheet_names:
+            match = year_pattern.search(sheet)
+            if match and "fluxo de caixa" in sheet.lower():
+                with st.expander(f"Dados da Planilha: {sheet}"):
+                    # Carrega a planilha pulando as linhas de cabeçalho
+                    df_full_raw = pd.read_excel(excel_master_path, sheet_name=sheet, skiprows=4, index_col=0)
+                    
+                    # Cria um grupo para cada bloco de linhas separado por uma linha nula
+                    # Uma linha nula no índice indica a separação
+                    group_ids = (df_full_raw.index.isna()).cumsum()
+                    
+                    # Agrupa por esses IDs e exibe cada grupo como uma tabela separada
+                    for _, group_df in df_full_raw.groupby(group_ids):
+                        # Remove a linha nula (se houver) e aplica o estilo
+                        st.dataframe(style_dataframe(group_df.dropna(how='all').fillna(0)))
+
+    except FileNotFoundError:
+        st.error(f"Arquivo mestre não encontrado em: '{excel_master_path}'")
+    except Exception as e:
+        st.error(f"Ocorreu um erro ao carregar os dados do fluxo de caixa: {e}")
+
 
 
 def render_upload_page():
@@ -140,13 +190,29 @@ def render_upload_page():
             valores_encontrados = re.findall(padrao_valor, text)
             datas_encontradas = re.findall(padrao_data, text)
 
-            col1, col2 = st.columns(2)
+            # --- Identificação do Apartamento ---
+            moradores_map = load_moradores_mapping('moradores.yaml')
+            apartamento_encontrado = None
+            nome_encontrado = None
+
+            for nome, apto in moradores_map.items():
+                # Procura pelo nome do morador no texto do PDF (ignorando maiúsculas/minúsculas)
+                if re.search(nome, text, re.IGNORECASE):
+                    apartamento_encontrado = apto
+                    nome_encontrado = nome
+                    break # Para no primeiro nome que encontrar
+
+            col1, col2, col3 = st.columns(3)
             with col1:
                 st.write("**Valores (R$):**")
-                st.write(valores_encontrados if valores_encontrados else "Nenhum valor encontrado.")
+                st.write(valores_encontrados[0] if valores_encontrados else "Nenhum valor encontrado.")
             with col2:
                 st.write("**Datas:**")
-                st.write(datas_encontradas if datas_encontradas else "Nenhuma data encontrada.")
+                unique_datas = list(set(datas_encontradas))
+                st.write(unique_datas[0] if unique_datas else "Nenhuma data encontrada.")
+            with col3:
+                st.write("**Morador Identificado:**")
+                st.write(f"{nome_encontrado} (Apto: {apartamento_encontrado})" if nome_encontrado else "Nenhum morador identificado.")
 
             # --- Formulário para Confirmação e Classificação ---
             if valores_encontrados and datas_encontradas:
@@ -173,11 +239,38 @@ def render_upload_page():
                         todas_categorias = DETAILED_REVENUE_CATEGORIES + DETAILED_VARIABLE_EXPENSE_CATEGORIES + ORIGINAL_EXTRA_EXPENSE_CATEGORIES
                         categoria_selecionada = st.selectbox("Categoria", options=todas_categorias)
 
-                    submitted = st.form_submit_button("Lançar no Sistema")
+                    # Cria colunas para o botão e a mensagem
+                    col_btn, col_msg = st.columns([1, 2])
+                    with col_btn:
+                        # O botão é desabilitado, então 'submitted' será sempre False
+                        submitted = st.form_submit_button("Lançar no Sistema", disabled=True)
+                    with col_msg:
+                        st.info("Funcionalidade de lançamento em desenvolvimento.")
+
+                    # A lógica abaixo é mantida, mas não será executada porque o botão está desabilitado.
                     if submitted:
-                        # Ação futura: aqui virá a lógica para atualizar o DataFrame principal
-                        st.success(f"Lançamento confirmado: R$ {valor_selecionado} em {data_selecionada} na categoria '{categoria_selecionada}'.")
-                        st.info("Funcionalidade de atualização do dashboard será implementada no próximo passo.")
+                        if apartamento_encontrado:
+                            try:
+                                # Converte valor para float
+                                valor_float = float(valor_selecionado.replace('.', '').replace(',', '.'))
+                                # Converte data para objeto datetime
+                                data_obj = datetime.strptime(data_selecionada, '%d/%m/%Y')
+
+                                # Chama a função para atualizar o arquivo Excel
+                                excel_path = 'planilhas/Contabilidade Condominio.xlsx'
+                                success, message = funcoes.update_taxa_condominio(
+                                    excel_path, 'TaxaCondominio', apartamento_encontrado, data_obj, valor_float
+                                )
+
+                                if success:
+                                    st.success(message)
+                                    st.cache_data.clear() # Limpa o cache para forçar a releitura dos dados
+                                else:
+                                    st.error(message)
+                            except Exception as e:
+                                st.error(f"Erro ao processar o lançamento: {e}")
+                        else:
+                            st.error("Não foi possível identificar um morador no comprovante. Lançamento não realizado.")
 
         except Exception as e:
             st.error(f"Ocorreu um erro ao processar o PDF: {e}")
@@ -233,7 +326,7 @@ def render_cotas_dashboard():
         st.markdown("### Visão Geral dos Pagamentos")
         # Preenche valores nulos com 0 e aplica a formatação de moeda
         st.dataframe(
-            df_cotas_raw.fillna(0).style.format(funcoes.format_currency_brl)
+            df_cotas_raw.fillna(0)
         )
 
         st.markdown("---")
@@ -282,7 +375,7 @@ def render_full_dashboard():
 
         for sheet in sheet_names:
             match = year_pattern.search(sheet)
-            if match:
+            if match and "fluxo de caixa" in sheet.lower():
                 year = int(match.group(1))
                 df = funcoes.load_and_process_data(excel_master_path, sheet, year)
                 if df is not None:
@@ -490,29 +583,31 @@ def main_dashboard():
     authenticator.logout('Logout', 'sidebar', key='unique_logout_key')
     st.sidebar.title(f'Bem-vindo, *{st.session_state["name"]}*')
 
-    # Verifica se o usuário ainda está autenticado após a chamada do logout.
-    # Se o botão de logout foi clicado, o status será None e devemos parar aqui.
+    # Verifica se o usuário ainda está autenticado após o logout
     if not st.session_state.get("authentication_status"):
         return
 
     # Pega o nome de usuário da sessão
     username = st.session_state["username"]
     # Busca a role do usuário no dicionário de credenciais
-    user_role = config_credentials['usernames'][username].get('role', 'user') # Padrão para 'user' se a role não for definida
+    user_role = config_credentials['usernames'][username].get('role', 'user')  # Padrão para 'user'
 
     # Define as páginas disponíveis para cada tipo de usuário
     admin_pages = {
         "Dashboard Principal": render_full_dashboard,
+        "Fluxo de Caixa (Dados)": render_fluxo_caixa_page,
         "Gerenciar Usuários": render_admin_page,
         "Upload de Comprovantes": render_upload_page,
         "Condominio Mensal": render_cotas_dashboard
     }
     user_pages = {
         "Dashboard Principal": render_full_dashboard,
+        "Fluxo de Caixa (Dados)": render_fluxo_caixa_page,
         "Upload de Comprovantes": render_upload_page,
         "Condominio Mensal": render_cotas_dashboard
     }
 
+    # Define as páginas com base na role
     if user_role == 'admin':
         st.sidebar.success("Você está logado como **Administrador**.")
         pages_to_show = admin_pages
@@ -526,17 +621,13 @@ def main_dashboard():
 
 
 # --- Lógica Principal da Aplicação ---
+# Renderiza sempre o formulário de login primeiro
+authenticator.login(fields={'Form name': 'Login'}, location='main')
 
-# Verifica o status da autenticação ANTES de renderizar qualquer coisa
+# Verifica o status da autenticação
 if st.session_state.get("authentication_status"):
-    # Se o usuário estiver autenticado, mostra o dashboard
     main_dashboard()
-else:
-    # Se não estiver autenticado, mostra a tela de login
-    # A função login retorna o status da autenticação, que deve ser capturado.
-    authenticator.login(location='main')
-
-    if st.session_state.get("authentication_status") is False:
-        st.error('Usuário ou senha incorreto.')
-    elif st.session_state.get("authentication_status") is None:
-        st.warning('Por favor, insira seu usuário e senha.')
+elif st.session_state.get("authentication_status") is False:
+    st.error('Usuário ou senha incorreto.')
+elif st.session_state.get("authentication_status") is None:
+    st.warning('Por favor, insira seu usuário e senha.')
