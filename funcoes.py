@@ -2,7 +2,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st 
 import streamlit_authenticator as stauth
-import os, requests, pickle
+import os, requests, pickle, base64
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
@@ -57,6 +57,29 @@ def load_and_process_data(excel_path, sheet_name, year):
     df_transposed['Período'] = df_transposed['Mês'].astype(str).str.slice(0, 3) + '-' + df_transposed['Ano'].astype(str)
     
     return df_transposed
+
+
+
+def upload_comprovante_google_drive(local_path, nome_arquivo, folder_id=None):
+    # Reconstrói o token a partir do base64
+    token_bytes = base64.b64decode(st.secrets["google_drive"]["token_b64"])
+    creds = pickle.loads(token_bytes)
+
+    service = build('drive', 'v3', credentials=creds)
+
+    file_metadata = {'name': nome_arquivo}
+    if folder_id:
+        file_metadata['parents'] = [folder_id]
+
+    media = MediaFileUpload(local_path, resumable=True)
+    file = service.files().create(
+        body=file_metadata,
+        media_body=media,
+        fields='id, webViewLink'
+    ).execute()
+
+    return file.get('webViewLink')
+
 
 # Função auxiliar para formatar valores monetários em BRL
 def format_currency_brl(value):
