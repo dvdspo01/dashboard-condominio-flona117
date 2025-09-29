@@ -199,9 +199,10 @@ def render_upload_page():
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             safe_filename = "".join(c for c in uploaded_file.name if c.isalnum() or c in ('.', '_')).rstrip()
             new_filename = f"{timestamp}_{safe_filename}"
-            comprovantes_dir = "comprovantes"
-            os.makedirs(comprovantes_dir, exist_ok=True)
-            save_path = os.path.join(comprovantes_dir, new_filename)
+            # comprovantes_dir = "comprovantes"
+            # os.makedirs(comprovantes_dir, exist_ok=True)
+            # save_path = os.path.join(comprovantes_dir, new_filename)
+            save_path = new_filename  # Salva na raiz temporariamente, será movido após confirmação
 
             # --- Processamento do conteúdo (OCR ou PDF) ---
             file_ext = uploaded_file.name.split('.')[-1].lower()
@@ -280,10 +281,14 @@ def render_upload_page():
                         with open(save_path, "wb") as f:
                             f.write(file_bytes)
 
-                        link_drive = funcoes.upload_comprovante_google_drive(save_path, new_filename, folder_id="1yAIs75wbsUrP8RqwLR_xqko11IpSHZEQ")
-                        st.markdown(f"**Comprovante salvo em:** [Google Drive]({link_drive})")
-                        st.success(f"Comprovante '{uploaded_file.name}' salvo com sucesso!")
-                        st.info("Lançamento registrado.")
+                        try:
+                            link_drive = funcoes.upload_comprovante_google_drive(save_path, new_filename, folder_id="1yAIs75wbsUrP8RqwLR_xqko11IpSHZEQ")
+                            st.markdown(f"**Comprovante salvo em:** [Google Drive]({link_drive})")
+                            st.success(f"Comprovante '{uploaded_file.name}' salvo com sucesso!")
+                            st.info("Lançamento registrado.")
+                            os.remove(save_path)
+                        except Exception as erro_drive:
+                            st.error(f"Erro ao enviar para o Google Drive: {erro_drive}")
 
         except Exception as e:
             st.error(f"Ocorreu um erro ao processar o arquivo: {e}")
