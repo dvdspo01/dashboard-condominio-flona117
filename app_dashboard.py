@@ -218,18 +218,26 @@ def render_visualizar_comprovantes_google_drive():
     # Exibe agrupado por mês
     for mes, lista_arquivos in sorted(arquivos_por_mes.items(), reverse=True):
         with st.expander(f"📅 {mes}", expanded=False):
-            for file in sorted(lista_arquivos, key=lambda f: f["name"], reverse=True):
-                with st.expander(f"📁 {file['name']}", expanded=False):
-                    st.markdown(f"[🔗 Abrir no Google Drive]({file['webViewLink']})")
+            # Divide os arquivos em blocos de 2 por linha
+            for i in range(0, len(lista_arquivos), 2):
+                colunas = st.columns(2)
+                for idx, file in enumerate(lista_arquivos[i:i+2]):
+                    with colunas[idx]:
+                        st.markdown(f"**📁 {file['name']}**", help="Clique para abrir no Drive")
+                        st.markdown(f"[🔗 Abrir no Google Drive]({file['webViewLink']})")
 
-                    embed_url = f"https://drive.google.com/file/d/{file['id']}/preview"
+                        embed_url = f"https://drive.google.com/file/d/{file['id']}/preview"
 
-                    if file["mimeType"] == "application/pdf":
-                        st.markdown(f'<iframe src="{embed_url}" width="100%" height="500px"></iframe>', unsafe_allow_html=True)
-                    elif file["mimeType"].startswith("image/"):
-                        st.markdown(f'<iframe src="{embed_url}" width="100%" height="500px"></iframe>', unsafe_allow_html=True)
-
-                st.divider()
+                        if file["mimeType"].startswith("image/"):
+                            st.markdown(
+                                f'<iframe src="{embed_url}" width="100%" height="200px" style="border:none;"></iframe>',
+                                unsafe_allow_html=True
+                            )
+                        elif file["mimeType"] == "application/pdf":
+                            st.markdown(
+                                f'<iframe src="{embed_url}" width="100%" height="200px" style="border:none;"></iframe>',
+                                unsafe_allow_html=True
+                            )
 
 
 
