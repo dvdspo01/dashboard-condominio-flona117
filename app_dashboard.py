@@ -667,7 +667,7 @@ def main_dashboard():
         "Gerenciar Usuários": render_admin_page,
         "Upload de Comprovantes": render_upload_page,
         "Condominio Mensal": render_cotas_dashboard,
-        "Visualizar Comprovantes": render_visualizar_comprovantes
+        "Visualizar Comprovantes": render_visualizar_comprovantes_google_drive
 
     }
     user_pages = {
@@ -675,7 +675,7 @@ def main_dashboard():
         "Fluxo de Caixa (Dados)": render_fluxo_caixa_page,
         "Upload de Comprovantes": render_upload_page,
         "Condominio Mensal": render_cotas_dashboard,
-        "Visualizar Comprovantes": render_visualizar_comprovantes
+        "Visualizar Comprovantes": render_visualizar_comprovantes_google_drive
 
     }
 
