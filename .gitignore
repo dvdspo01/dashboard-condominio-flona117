@@ -1,0 +1,15 @@
+# Ambiente virtual
+venv/
+
+# Arquivos de cache do Python
+__pycache__/
+*.pyc
+
+# Scripts de geração de chaves (contêm segredos)
+generate_keys.py
+generate_cookie_key.py
+
+# Arquivo de configuração do autenticador (contêm segredos)
+secrets.yaml
+client_secret.json
+.streamlit
