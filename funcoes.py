@@ -103,7 +103,18 @@ def formatar_mes_em_portugues(data_obj):
 
 def upload_comprovante_google_drive(local_path, nome_arquivo, folder_id=None):
     SCOPES = ['https://www.googleapis.com/auth/drive.file']
-    flow = InstalledAppFlow.from_client_secrets_file('client_secret.json', SCOPES)
+    client_config = {
+    "installed": {
+        "client_id": st.secrets["google_oauth"]["client_id"],
+        "client_secret": st.secrets["google_oauth"]["client_secret"],
+        "redirect_uris": st.secrets["google_oauth"]["redirect_uris"],
+        "auth_uri": st.secrets["google_oauth"]["auth_uri"],
+        "token_uri": st.secrets["google_oauth"]["token_uri"]
+        }
+    }
+
+    flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
+
     creds = flow.run_local_server(port=0)
 
     service = build('drive', 'v3', credentials=creds)
