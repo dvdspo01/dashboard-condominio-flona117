@@ -134,50 +134,98 @@ def render_fluxo_caixa_page():
         st.error(f"Ocorreu um erro ao carregar os dados do fluxo de caixa: {e}")
 
 
-def render_visualizar_comprovantes():
+# def render_visualizar_comprovantes():
+#     st.title("Visualizar Comprovantes")
+#     comprovantes_dir = "comprovantes"
+#     if not os.path.exists(comprovantes_dir):
+#         st.warning("Nenhum comprovante foi salvo ainda.")
+#         return
+
+#     arquivos = [f for f in os.listdir(comprovantes_dir) if f.lower().endswith((".pdf", ".jpg", ".jpeg"))]
+#     if not arquivos:
+#         st.info("Não há comprovantes disponíveis para visualização.")
+#         return
+
+#     arquivos_por_mes = defaultdict(list)
+#     for arquivo in arquivos:
+#         try:
+#             partes = arquivo.split("_")
+#             data_str = partes[0]  # "YYYYMMDD"
+#             data_obj = datetime.strptime(data_str, "%Y%m%d")
+#             mes_label = funcoes.formatar_mes_em_portugues(data_obj)
+
+#             arquivos_por_mes[mes_label].append(arquivo)
+#         except Exception:
+#             arquivos_por_mes["Indefinido"].append(arquivo)
+
+#     for mes, lista_arquivos in sorted(arquivos_por_mes.items(), reverse=True):
+#         with st.expander(f"📅 {mes}", expanded=False):  # grupo do mês fechado
+#             for arquivo in sorted(lista_arquivos, reverse=True):
+#                 caminho = os.path.join(comprovantes_dir, arquivo)
+#                 ext = arquivo.split('.')[-1].lower()
+
+#                 with st.expander(f"📁 {arquivo}", expanded=False):  # comprovante fechado
+#                     if ext == "pdf":
+#                         with open(caminho, "rb") as f:
+#                             base64_pdf = base64.b64encode(f.read()).decode('utf-8')
+#                             pdf_viewer = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="500px" type="application/pdf"></iframe>'
+#                             st.markdown(pdf_viewer, unsafe_allow_html=True)
+
+#                         with open(caminho, "rb") as f:
+#                             st.download_button("📥 Baixar PDF", f.read(), file_name=arquivo, mime="application/pdf")
+
+#                     elif ext in ["jpg", "jpeg"]:
+#                         st.image(caminho, caption=arquivo, width='stretch')
+#                         with open(caminho, "rb") as f:
+#                             st.download_button("📥 Baixar Imagem", f.read(), file_name=arquivo, mime="image/jpeg")
+
+#                 st.divider()
+
+def render_visualizar_comprovantes_google_drive():
     st.title("Visualizar Comprovantes")
-    comprovantes_dir = "comprovantes"
-    if not os.path.exists(comprovantes_dir):
-        st.warning("Nenhum comprovante foi salvo ainda.")
-        return
 
-    arquivos = [f for f in os.listdir(comprovantes_dir) if f.lower().endswith((".pdf", ".jpg", ".jpeg"))]
+    # Reconstrói credenciais
+    token_bytes = base64.b64decode(st.secrets["google_drive"]["token_b64"])
+    creds = pickle.loads(token_bytes)
+    service = build('drive', 'v3', credentials=creds)
+
+    # ID da pasta onde estão os comprovantes
+    folder_id = "1yAIs75wbsUrP8RqwLR_xqko11IpSHZEQ"
+
+    # Busca arquivos na pasta
+    query = f"'{folder_id}' in parents and trashed = false"
+    results = service.files().list(q=query, fields="files(id, name, mimeType, webViewLink)").execute()
+    arquivos = results.get("files", [])
+
     if not arquivos:
-        st.info("Não há comprovantes disponíveis para visualização.")
+        st.info("Não há comprovantes disponíveis no Google Drive.")
         return
 
+    # Agrupa por mês com base no nome
     arquivos_por_mes = defaultdict(list)
-    for arquivo in arquivos:
+    for file in arquivos:
         try:
-            partes = arquivo.split("_")
+            partes = file["name"].split("_")
             data_str = partes[0]  # "YYYYMMDD"
             data_obj = datetime.strptime(data_str, "%Y%m%d")
             mes_label = funcoes.formatar_mes_em_portugues(data_obj)
-
-            arquivos_por_mes[mes_label].append(arquivo)
+            arquivos_por_mes[mes_label].append(file)
         except Exception:
-            arquivos_por_mes["Indefinido"].append(arquivo)
+            arquivos_por_mes["Indefinido"].append(file)
 
+    # Exibe agrupado por mês
     for mes, lista_arquivos in sorted(arquivos_por_mes.items(), reverse=True):
-        with st.expander(f"📅 {mes}", expanded=False):  # grupo do mês fechado
-            for arquivo in sorted(lista_arquivos, reverse=True):
-                caminho = os.path.join(comprovantes_dir, arquivo)
-                ext = arquivo.split('.')[-1].lower()
+        with st.expander(f"📅 {mes}", expanded=False):
+            for file in sorted(lista_arquivos, key=lambda f: f["name"], reverse=True):
+                with st.expander(f"📁 {file['name']}", expanded=False):
+                    st.markdown(f"[🔗 Abrir no Google Drive]({file['webViewLink']})")
 
-                with st.expander(f"📁 {arquivo}", expanded=False):  # comprovante fechado
-                    if ext == "pdf":
-                        with open(caminho, "rb") as f:
-                            base64_pdf = base64.b64encode(f.read()).decode('utf-8')
-                            pdf_viewer = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="500px" type="application/pdf"></iframe>'
-                            st.markdown(pdf_viewer, unsafe_allow_html=True)
-
-                        with open(caminho, "rb") as f:
-                            st.download_button("📥 Baixar PDF", f.read(), file_name=arquivo, mime="application/pdf")
-
-                    elif ext in ["jpg", "jpeg"]:
-                        st.image(caminho, caption=arquivo, width='stretch')
-                        with open(caminho, "rb") as f:
-                            st.download_button("📥 Baixar Imagem", f.read(), file_name=arquivo, mime="image/jpeg")
+                    if file["mimeType"] == "application/pdf":
+                        embed_url = f"https://drive.google.com/file/d/{file['id']}/preview"
+                        st.markdown(f'<iframe src="{embed_url}" width="100%" height="500px"></iframe>', unsafe_allow_html=True)
+                    elif file["mimeType"].startswith("image/"):
+                        embed_url = f"https://drive.google.com/uc?id={file['id']}"
+                        st.image(embed_url, caption=file["name"], use_column_width=True)
 
                 st.divider()
 
