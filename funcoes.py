@@ -2,11 +2,9 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st 
 import streamlit_authenticator as stauth
-import os, requests
-from google_auth_oauthlib.flow import InstalledAppFlow
+import os, requests, pickle
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-from google.oauth2 import service_account
 
 
 OCR_SPACE_API_KEY = os.getenv('OCR_SPACE_API_KEY')  # Use 'helloworld' para testes gratuitos
@@ -101,29 +99,32 @@ def formatar_mes_em_portugues(data_obj):
 
 
 
+import streamlit as st
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+from google_auth_oauthlib.flow import InstalledAppFlow
+
+
 def upload_comprovante_google_drive(local_path, nome_arquivo, folder_id=None):
-    SCOPES = ['https://www.googleapis.com/auth/drive.file']
-    client_config = {
-    "installed": {
-        "client_id": st.secrets["google_oauth"]["client_id"],
-        "client_secret": st.secrets["google_oauth"]["client_secret"],
-        "redirect_uris": st.secrets["google_oauth"]["redirect_uris"],
-        "auth_uri": st.secrets["google_oauth"]["auth_uri"],
-        "token_uri": st.secrets["google_oauth"]["token_uri"]
-        }
-    }
+    # Carrega credenciais salvas
+    with open('token_drive.pkl', 'rb') as token:
+        creds = pickle.load(token)
 
-    flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
-
-    creds = flow.run_local_server(port=0)
-
+    # Conecta ao Google Drive
     service = build('drive', 'v3', credentials=creds)
 
+    # Define metadados do arquivo
     file_metadata = {'name': nome_arquivo}
     if folder_id:
         file_metadata['parents'] = [folder_id]
 
+    # Prepara o upload
     media = MediaFileUpload(local_path, resumable=True)
-    file = service.files().create(body=file_metadata, media_body=media, fields='id, webViewLink').execute()
+    file = service.files().create(
+        body=file_metadata,
+        media_body=media,
+        fields='id, webViewLink'
+    ).execute()
 
     return file.get('webViewLink')

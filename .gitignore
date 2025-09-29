@@ -8,6 +8,7 @@ __pycache__/
 # Scripts de geração de chaves (contêm segredos)
 generate_keys.py
 generate_cookie_key.py
+token_drive.pkl
 
 # Arquivo de configuração do autenticador (contêm segredos)
 secrets.yaml
