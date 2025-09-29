@@ -222,12 +222,12 @@ def render_visualizar_comprovantes_google_drive():
                 with st.expander(f"📁 {file['name']}", expanded=False):
                     st.markdown(f"[🔗 Abrir no Google Drive]({file['webViewLink']})")
 
+                    embed_url = f"https://drive.google.com/file/d/{file['id']}/preview"
+
                     if file["mimeType"] == "application/pdf":
-                        embed_url = f"https://drive.google.com/file/d/{file['id']}/preview"
                         st.markdown(f'<iframe src="{embed_url}" width="100%" height="500px"></iframe>', unsafe_allow_html=True)
                     elif file["mimeType"].startswith("image/"):
-                        embed_url = f"https://drive.google.com/uc?id={file['id']}"
-                        st.image(embed_url, caption=file["name"], use_container_width=True)
+                        st.markdown(f'<iframe src="{embed_url}" width="100%" height="500px"></iframe>', unsafe_allow_html=True)
 
                 st.divider()
 
