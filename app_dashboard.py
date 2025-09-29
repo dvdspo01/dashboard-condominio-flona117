@@ -4,9 +4,11 @@ import streamlit as st
 import streamlit_authenticator as stauth
 import funcoes
 from funcoes import ocr_space_api
-import os, re, base64, yaml
+import os, re, base64, yaml, pickle
 from datetime import datetime
 import fitz # PyMuPDF
+from collections import defaultdict
+from googleapiclient.discovery import build
 from collections import defaultdict
 
 
