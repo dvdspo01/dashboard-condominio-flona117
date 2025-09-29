@@ -130,16 +130,19 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 
 
 def upload_comprovante_google_drive(local_path, nome_arquivo, folder_id=None):
-    # Reconstrói o token a partir do base64
+    st.write("🔄 Iniciando reconstrução do token...")
     token_bytes = base64.b64decode(st.secrets["google_drive"]["token_b64"])
     creds = pickle.loads(token_bytes)
 
+    st.write("✅ Token reconstruído. Conectando ao Google Drive...")
     service = build('drive', 'v3', credentials=creds)
 
+    st.write("📁 Preparando metadados do arquivo...")
     file_metadata = {'name': nome_arquivo}
     if folder_id:
         file_metadata['parents'] = [folder_id]
 
+    st.write("📤 Iniciando upload...")
     media = MediaFileUpload(local_path, resumable=True)
     file = service.files().create(
         body=file_metadata,
@@ -147,5 +150,6 @@ def upload_comprovante_google_drive(local_path, nome_arquivo, folder_id=None):
         fields='id, webViewLink'
     ).execute()
 
+    st.write("✅ Upload concluído.")
     return file.get('webViewLink')
 
