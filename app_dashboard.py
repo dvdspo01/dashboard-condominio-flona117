@@ -3,7 +3,7 @@ import plotly.express as px
 import streamlit as st 
 import streamlit_authenticator as stauth
 import funcoes
-from funcoes import ocr_space_api
+from funcoes import ocr_space_api, formatar_mes_em_portugues
 import os, re, base64, yaml, pickle
 from datetime import datetime
 import fitz # PyMuPDF
@@ -11,6 +11,14 @@ from collections import defaultdict
 from googleapiclient.discovery import build
 from collections import defaultdict
 
+# --- Configuração de Localização para Datas em Português ---
+# Define o locale para português do Brasil para que o Pandas possa interpretar
+# corretamente os nomes dos meses abreviados (ex: 'Abr', 'Mai', 'Ago').
+try:
+    import locale
+    locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
+except locale.Error:
+    st.warning("Locale 'pt_BR.UTF-8' não encontrado. A ordenação dos meses pode não ser cronológica.")
 
 
 # --- Configuração e Layout do Streamlit (deve ser a primeira chamada Streamlit) ---
@@ -408,7 +416,7 @@ def render_cotas_dashboard():
         st.markdown("---")
         st.subheader("Total Arrecadado por Mês de Referência")
         pagamentos_por_mes = df_cotas.groupby('Mês Referência')['Valor Pago'].sum().reset_index()
-        pagamentos_por_mes = pagamentos_por_mes[pagamentos_por_mes['Valor Pago'] > 0] # Remove meses sem arrecadação
+        pagamentos_por_mes = pagamentos_por_mes[pagamentos_por_mes['Valor Pago'] >= 0] # Remove meses sem arrecadação
         
         # Ordena os meses corretamente se eles tiverem um formato que permita ordenação
         try:
@@ -503,8 +511,12 @@ def render_full_dashboard():
     # Filtra o DataFrame com base nos anos selecionados
     filtered_df = df_combined[df_combined['Ano'].isin(selected_years)].copy()
 
+    # --- ORDENAÇÃO CRONOLÓGICA (CORREÇÃO) ---
+    # Ordena o DataFrame principal pela data para garantir que cálculos e gráficos fiquem na ordem correta.
+    filtered_df.sort_values('sort_date', inplace=True)
+
     # Dropdown para seleção de mês para a visualização detalhada
-    all_periods = sorted(filtered_df['Período'].unique())
+    all_periods = list(filtered_df['Período'].unique()) # A lista já estará na ordem correta
     selected_period_detail = st.sidebar.selectbox(
         "Selecione um Mês para Detalhes:",
         options=['Todos os Meses'] + all_periods,
@@ -526,8 +538,11 @@ def render_full_dashboard():
     except FileNotFoundError:
         st.sidebar.error(f"Arquivo não encontrado em: {planilha_path}")
 
-    # Remove meses que não têm dados de 'SALDO Total (Caixa)' para um gráfico mais limpo
-    filtered_df_for_plot = filtered_df[filtered_df['SALDO Total (Caixa)'] > 0].copy()
+    # Remove meses que não têm dados de 'SALDO Total (Caixa)' (NaN) para um gráfico mais limpo, mas mantém saldos 0.
+    filtered_df_for_plot = filtered_df[filtered_df['SALDO Total (Caixa)'].notna()].copy()
+
+    # st.write("Verificação: Outubro/2025 no DataFrame filtrado")
+    # st.dataframe(filtered_df_for_plot[filtered_df_for_plot['Período'].str.contains("Outubro", case=False)])
 
     # --- Conteúdo Principal - Cards de Resumo ---
     st.subheader("Resumo Financeiro")
@@ -608,7 +623,7 @@ def render_full_dashboard():
         # Prepara os dados para as receitas detalhadas
         df_revenue_detail = df_detail[DETAILED_REVENUE_CATEGORIES].sum().reset_index()
         df_revenue_detail.columns = ['Categoria', 'Valor']
-        df_revenue_detail = df_revenue_detail[df_revenue_detail['Valor'] > 0] # Filtra valores zero
+        df_revenue_detail = df_revenue_detail[df_revenue_detail['Valor'] >=0] # Filtra valores zero
 
         # Prepara os dados para as despesas detalhadas (variáveis e extras)
         # Define as categorias de despesa para o gráfico, usando a nova coluna combinada
@@ -616,7 +631,7 @@ def render_full_dashboard():
 
         df_expense_detail = df_detail[all_expense_categories].sum().reset_index()
         df_expense_detail.columns = ['Categoria', 'Valor']
-        df_expense_detail = df_expense_detail[df_expense_detail['Valor'] > 0]
+        df_expense_detail = df_expense_detail[df_expense_detail['Valor'] >= 0]
 
         col_detail1, col_detail2 = st.columns(2)
 
