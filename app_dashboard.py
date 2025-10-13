@@ -18,7 +18,8 @@ try:
     import locale
     locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
 except locale.Error:
-    st.warning("Locale 'pt_BR.UTF-8' não encontrado. A ordenação dos meses pode não ser cronológica.")
+    pass
+    #st.warning("Locale 'pt_BR.UTF-8' não encontrado. A ordenação dos meses pode não ser cronológica.")
 
 
 # --- Configuração e Layout do Streamlit (deve ser a primeira chamada Streamlit) ---
