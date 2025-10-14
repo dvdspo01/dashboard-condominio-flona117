@@ -33,6 +33,41 @@ st.set_page_config(
     }
 )
 
+# --- Estilização Customizada com CSS ---
+# Injeta CSS para customizar o tema de cores e o botão da barra lateral.
+st.markdown("""
+<style>
+    /* Cor de fundo do corpo principal da aplicação */
+    [data-testid="stAppViewContainer"] {
+        background-color: #f0f2f6; /* Cinza claro suave */
+    }
+
+    /* Cor de fundo da barra lateral */
+    [data-testid="stSidebar"] {
+        background-color: #e8e8e8; /* Cinza um pouco mais escuro para contraste */
+    }
+
+    /* Você pode descomentar a linha abaixo para um tema azul claro */
+    /* [data-testid="stAppViewContainer"] { background-color: #e6f3ff; } */
+    /* [data-testid="stSidebar"] { background-color: #d0e7ff; } */
+    
+    /* Estiliza o selectbox do menu de navegação para combinar com a cor de 'st.info' */
+    div[data-baseweb="select"] > div {
+        background-color: #d3d3d3 !important; /* Azul claro, mesma cor do st.info */
+        border-radius: 0.5rem;                /* Bordas arredondadas */
+    }
+
+    /* Destaca os campos de input de Username e Senha na tela de login */
+    input[aria-label="Username"],
+    input[aria-label="Password"] {
+        background-color: #d3d3d3 !important; /* Fundo cinza claro */
+        border: 1px solid #b0b0b0 !important;   /* Borda cinza para visibilidade */
+    garantir contraste */
+        border: 1px solid #b0b0b0 !important;   /* Borda cinza para visibilidade */
+    }
+</style>
+""", unsafe_allow_html=True)
+
 
 # --- CONSTANTES GLOBAIS DE CATEGORIAS ---
 DETAILED_REVENUE_CATEGORIES = ['Cotas Condominiais (Até dia 08)', 'Rendimentos']
@@ -711,8 +746,9 @@ def main_dashboard():
         st.sidebar.info("Você está logado como **Usuário**.")
         pages_to_show = user_pages
 
-    # Renderiza o menu de navegação e a página selecionada
-    selected_page = st.sidebar.radio("Navegação", options=list(pages_to_show.keys()))
+    # Renderiza o menu de navegação como um dropdown no topo da página principal
+    selected_page = st.selectbox("Selecione a página para navegar:", options=list(pages_to_show.keys()))
+    st.markdown("---") # Adiciona uma linha divisória para separar o menu do conteúdo
     pages_to_show[selected_page]()
 
 
