@@ -133,8 +133,6 @@ def normalize_month_name(name):
     return name.upper()
 
 
-
-
 def ocr_space_api(file_path, api_key='helloworld'):
     with open(file_path, 'rb') as f:
         response = requests.post(
