@@ -575,10 +575,14 @@ def render_full_dashboard():
         st.sidebar.error(f"Arquivo não encontrado em: {planilha_path}")
 
     # Remove meses que não têm dados de 'SALDO Total (Caixa)' (NaN) para um gráfico mais limpo, mas mantém saldos 0.
-    filtered_df_for_plot = filtered_df[filtered_df['SALDO Total (Caixa)'].notna()].copy()
+    #filtered_df_for_plot = filtered_df[filtered_df['SALDO Total (Caixa)'].notna()].copy()
 
-    # st.write("Verificação: Outubro/2025 no DataFrame filtrado")
-    # st.dataframe(filtered_df_for_plot[filtered_df_for_plot['Período'].str.contains("Outubro", case=False)])
+    # Garantir que SALDO Total (Caixa) seja numérico e filtrar NaN e ZERO
+    filtered_df['SALDO Total (Caixa)'] = pd.to_numeric(filtered_df['SALDO Total (Caixa)'], errors='coerce')
+    filtered_df_for_plot = filtered_df[
+        filtered_df['SALDO Total (Caixa)'].notna() &
+        (filtered_df['SALDO Total (Caixa)'] != 0)
+    ].copy()
 
     # --- Conteúdo Principal - Cards de Resumo ---
     st.subheader("Resumo Financeiro")
