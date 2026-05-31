@@ -718,6 +718,7 @@ def main_dashboard():
     if not st.session_state.get("authentication_status"):
         return
 
+
     # Pega o nome de usuário da sessão
     username = st.session_state["username"]
     # Busca a role do usuário no dicionário de credenciais
