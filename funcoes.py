@@ -74,7 +74,8 @@ def load_and_process_data(excel_path, sheet_name, year):
     # Mapeia nomes de meses em português para número do mês para uma ordenação robusta
     meses_map = {
         'JANEIRO': 1, 'FEVEREIRO': 2, 'MARCO': 3, 'ABRIL': 4, 'MAIO': 5, 'JUNHO': 6,
-        'JULHO': 7, 'AGOSTO': 8, 'SETEMBRO': 9, 'OUTUBRO': 10, 'NOVEMBRO': 11, 'DEZEMBRO': 12
+        'JULHO': 7, 'AGOSTO': 8, 'SETEMBRO': 9, 'OUTUBRO': 10, 'NOVEMBRO': 11, 'DEZEMBRO': 12,
+        'MARCO': 3 # Garantia para variações
     }
     # Extrai apenas o nome do mês da coluna 'Mês', ignorando qualquer coisa após '/'
     month_names_only = df_transposed['Mês'].apply(normalize_month_name)
@@ -128,6 +129,13 @@ def format_currency_brl(value):
     return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 def normalize_month_name(name):
+    # Se o pandas já leu como um objeto de data, extraímos o mês
+    if hasattr(name, 'month'):
+        months = ['JANEIRO', 'FEVEREIRO', 'MARCO', 'ABRIL', 'MAIO', 'JUNHO',
+                  'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO']
+        try:
+            return months[name.month - 1]
+        except: pass
     name = str(name).split('/')[0].strip()
     name = unicodedata.normalize('NFKD', name).encode('ASCII', 'ignore').decode('ASCII')
     return name.upper()

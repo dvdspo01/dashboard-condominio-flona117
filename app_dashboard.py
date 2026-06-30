@@ -4,7 +4,7 @@ import streamlit as st
 import streamlit_authenticator as stauth
 import funcoes
 from funcoes import ocr_space_api, formatar_mes_em_portugues
-import os, re, base64, yaml, pickle
+import os, re, base64, yaml, pickle, unicodedata
 from datetime import datetime
 import fitz # PyMuPDF
 from collections import defaultdict
@@ -109,6 +109,120 @@ authenticator = stauth.Authenticate(
     config_cookie['key'],
     config_cookie['expiry_days']
 )
+
+
+def _extract_month_number(value):
+    """Extrai o número do mês de valores como 'Janeiro/2024', 'Março/2024' ou datas."""
+    if pd.isna(value):
+        return None
+
+    if isinstance(value, datetime):
+        return value.month
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    normalized_text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii').lower()
+
+    month_aliases = {
+        'janeiro': 1, 'jan': 1,
+        'fevereiro': 2, 'fev': 2,
+        'marco': 3, 'mar': 3,
+        'abril': 4, 'abr': 4,
+        'maio': 5, 'mai': 5,
+        'junho': 6, 'jun': 6,
+        'julho': 7, 'jul': 7,
+        'agosto': 8, 'ago': 8,
+        'setembro': 9, 'set': 9,
+        'outubro': 10, 'out': 10,
+        'novembro': 11, 'nov': 11,
+        'dezembro': 12, 'dez': 12,
+    }
+
+    for alias, month_number in month_aliases.items():
+        if alias in normalized_text:
+            return month_number
+
+    try:
+        parsed_date = pd.to_datetime(text, errors='coerce')
+        if pd.notna(parsed_date):
+            return parsed_date.month
+    except Exception:
+        return None
+
+    return None
+
+
+@st.cache_data
+def load_cotas_condominio_data(excel_master_path='planilhas/Contabilidade Condominio.xlsx', sheet_name_cotas='Fluxo de caixa 2026'):
+    """Carrega e prepara os dados da aba de cotas para o gráfico por apartamento."""
+    if sheet_name_cotas == 'Fluxo de caixa 2026':
+        df_sheet = pd.read_excel(excel_master_path, sheet_name=sheet_name_cotas, header=None)
+        title_row = df_sheet.index[df_sheet.iloc[:, 0].astype(str).str.contains('Creditos / Debitos AP', case=False, na=False)].tolist()
+
+        if title_row:
+            title_idx = title_row[0]
+            month_row_idx = df_sheet.index[df_sheet.iloc[:, 0].astype(str).str.strip().eq('Mês')].tolist()
+            month_row_idx = month_row_idx[0] if month_row_idx else title_idx
+            month_labels = [str(value) for value in df_sheet.iloc[month_row_idx, 1:] if pd.notna(value)]
+
+            if not month_labels:
+                month_labels = [f'Mês {i + 1}' for i in range(6)]
+
+            data_rows = []
+            for row_idx in range(title_idx + 1, len(df_sheet)):
+                apartment = df_sheet.iloc[row_idx, 0]
+                if pd.isna(apartment):
+                    continue
+
+                apartment_name = str(apartment).strip()
+                if not apartment_name or apartment_name.startswith('SALDO') or apartment_name.startswith('RECEITAS'):
+                    continue
+
+                values = df_sheet.iloc[row_idx, 1:1 + len(month_labels)].tolist()
+                for month_label, value in zip(month_labels, values):
+                    if pd.notna(value):
+                        data_rows.append({'Apartamento': apartment_name, 'Mês Referência': month_label, 'Valor Pago': value})
+
+            if data_rows:
+                df_cotas = pd.DataFrame(data_rows)
+                df_cotas['Valor Pago'] = pd.to_numeric(df_cotas['Valor Pago'], errors='coerce').fillna(0)
+                df_cotas['month_num'] = df_cotas['Mês Referência'].apply(_extract_month_number)
+
+                df_cotas_raw = df_cotas.pivot(index='Apartamento', columns='Mês Referência', values='Valor Pago').fillna(0)
+                df_cotas_raw.index.name = 'Apartamento'
+                return df_cotas_raw, df_cotas
+
+    df_cotas_raw = pd.read_excel(excel_master_path, sheet_name=sheet_name_cotas, skiprows=3, index_col=0, header=0)
+    df_cotas_raw = df_cotas_raw.dropna(how='all').dropna(axis=1, how='all')
+
+    if 'Total' in df_cotas_raw.index:
+        df_cotas_raw = df_cotas_raw.drop('Total')
+
+    if 'Total' in df_cotas_raw.columns:
+        df_cotas_raw = df_cotas_raw.drop(columns=['Total'])
+
+    new_columns = []
+    for col in df_cotas_raw.columns:
+        if isinstance(col, datetime):
+            new_columns.append(col.strftime('%b/%y'))
+        else:
+            new_columns.append(str(col))
+
+    df_cotas_raw.columns = new_columns
+    df_cotas_raw.index = df_cotas_raw.index.astype(str)
+
+    df_cotas = df_cotas_raw.reset_index().melt(
+        id_vars=df_cotas_raw.index.name,
+        var_name='Mês Referência',
+        value_name='Valor Pago'
+    )
+    df_cotas.rename(columns={df_cotas.columns[0]: 'Apartamento'}, inplace=True)
+    df_cotas['Valor Pago'] = pd.to_numeric(df_cotas['Valor Pago'], errors='coerce').fillna(0)
+    df_cotas['month_num'] = df_cotas['Mês Referência'].apply(_extract_month_number)
+    return df_cotas_raw, df_cotas
+
 
 def render_admin_page():
     """
@@ -402,47 +516,11 @@ def render_cotas_dashboard():
     st.title("Cotas do Condomínio")
 
     excel_master_path = 'planilhas/Contabilidade Condominio.xlsx'
-    sheet_name_cotas = "TaxaCondominio"
+    sheet_name_cotas = "Fluxo de caixa 2026"
 
     try:
-        # Carrega os dados da aba específica, pulando as 4 primeiras linhas para encontrar o cabeçalho correto.
-        df_cotas_raw = pd.read_excel(excel_master_path, sheet_name=sheet_name_cotas, skiprows=3, index_col=0, header=0)
-        df_cotas_raw = df_cotas_raw.dropna(how='all').dropna(axis=1, how='all') # Remove linhas e colunas vazias
+        df_cotas_raw, df_cotas = load_cotas_condominio_data(excel_master_path, sheet_name_cotas)
 
-        # --- Limpeza Adicional: Remove linhas/colunas de totais ---
-        # Remove a linha de 'Total' se ela existir no índice (muito comum em planilhas)
-        if 'Total' in df_cotas_raw.index:
-            df_cotas_raw = df_cotas_raw.drop('Total')
-
-        # Remove a coluna 'Total' se ela existir
-        if 'Total' in df_cotas_raw.columns:
-            df_cotas_raw = df_cotas_raw.drop(columns=['Total'])
-
-        # Garante que o índice e as colunas sejam do tipo string para evitar erros e avisos
-        # Itera sobre as colunas e formata aquelas que são do tipo datetime para o formato 'Mês/Ano'
-        new_columns = []
-        for col in df_cotas_raw.columns:
-            if isinstance(col, datetime):
-                # Formata a data para 'MêsAbreviado/AnoCurto' (ex: 'Jan/25')
-                new_columns.append(col.strftime('%b/%y'))
-            else:
-                new_columns.append(str(col))
-        df_cotas_raw.columns = new_columns
-        df_cotas_raw.index = df_cotas_raw.index.astype(str)
-
-        # --- Transformação dos Dados (Unpivot) ---
-        # Transforma o DataFrame do formato largo para o formato longo
-        df_cotas = df_cotas_raw.reset_index().melt(
-            id_vars=df_cotas_raw.index.name,
-            var_name='Mês Referência',
-            value_name='Valor Pago'
-        )
-        # Renomeia a coluna de apartamentos se necessário
-        df_cotas.rename(columns={df_cotas.columns[0]: 'Apartamento'}, inplace=True)
-        
-        # Limpa e converte a coluna 'Valor Pago' para numérico, tratando erros
-        df_cotas['Valor Pago'] = pd.to_numeric(df_cotas['Valor Pago'], errors='coerce').fillna(0)
-        
         st.markdown("### Visão Geral dos Pagamentos")
         # Preenche valores nulos com 0 e aplica a formatação de moeda
         st.dataframe(
@@ -470,6 +548,27 @@ def render_cotas_dashboard():
             st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': False})
         else:
             st.info("Não há dados de arrecadação para exibir no gráfico.")
+
+        st.markdown("---")
+        st.subheader("Evolução de Créditos/Débitos por Apartamento")
+
+        # Prepara os dados para o gráfico de linhas por AP
+        df_cotas_plot = df_cotas.copy()
+        df_cotas_plot = df_cotas_plot.sort_values(by=['month_num', 'Mês Referência'], na_position='last')
+
+        if not df_cotas_plot.empty:
+            fig_ap = px.line(
+                df_cotas_plot,
+                x='Mês Referência',
+                y='Valor Pago',
+                color='Apartamento',
+                title='Histórico de Créditos / Débitos por Apartamento',
+                markers=True,
+                labels={'Valor Pago': 'Valor (R$)', 'Mês Referência': 'Mês'}
+            )
+            st.plotly_chart(fig_ap, use_container_width=True, config={'scrollZoom': True})
+        else:
+            st.info("Não há dados suficientes para gerar o gráfico por apartamento.")
 
     except FileNotFoundError:
         st.error(f"Arquivo mestre não encontrado em: '{excel_master_path}'")
@@ -579,10 +678,8 @@ def render_full_dashboard():
 
     # Garantir que SALDO Total (Caixa) seja numérico e filtrar NaN e ZERO
     filtered_df['SALDO Total (Caixa)'] = pd.to_numeric(filtered_df['SALDO Total (Caixa)'], errors='coerce')
-    filtered_df_for_plot = filtered_df[
-        filtered_df['SALDO Total (Caixa)'].notna() &
-        (filtered_df['SALDO Total (Caixa)'] != 0)
-    ].copy()
+    # Mantém meses com saldo zero (futuros), remove apenas se for NaN (colunas inexistentes)
+    filtered_df_for_plot = filtered_df[filtered_df['SALDO Total (Caixa)'].notna()].copy()
 
     # --- Conteúdo Principal - Cards de Resumo ---
     st.subheader("Resumo Financeiro")
@@ -646,6 +743,30 @@ def render_full_dashboard():
         hover_data={'Ano': False, 'Mês': True}
     )
     st.plotly_chart(fig_comparativo, use_container_width=True, config={'scrollZoom': False})
+
+    st.markdown("---")
+
+    st.subheader("Créditos / Débitos por Apartamento")
+    try:
+        _, df_cotas = load_cotas_condominio_data()
+        df_cotas_plot = df_cotas.copy()
+        df_cotas_plot = df_cotas_plot.sort_values(by=['month_num', 'Mês Referência'], na_position='last')
+
+        if not df_cotas_plot.empty:
+            fig_ap = px.line(
+                df_cotas_plot,
+                x='Mês Referência',
+                y='Valor Pago',
+                color='Apartamento',
+                title='Histórico de Créditos / Débitos por Apartamento',
+                markers=True,
+                labels={'Valor Pago': 'Valor (R$)', 'Mês Referência': 'Mês'}
+            )
+            st.plotly_chart(fig_ap, use_container_width=True, config={'scrollZoom': True})
+        else:
+            st.info("Não há dados suficientes para gerar o gráfico de créditos/debitos por apartamento.")
+    except FileNotFoundError:
+        st.warning("A planilha de cotas não foi encontrada para montar o gráfico por apartamento.")
 
     st.markdown("---")
 
